@@ -1,0 +1,17 @@
+# Dependencies
+**/node_modules/
+
+# Build outputs
+mcp-server/dist/
+vscode-extension/dist/
+
+# Packaged extension artifacts
+vscode-extension/*.vsix
+
+# Local workspace configuration
+.vscode/mcp.json
+
+# Common local noise
+*.log
+.DS_Store
+Thumbs.db

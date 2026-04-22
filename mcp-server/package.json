@@ -1,0 +1,24 @@
+{
+  "name": "mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for reviewing agent-generated UI — runs inside the VS Code extension process",
+  "private": true,
+  "scripts": {
+    "build": "tsc && npm run bundle",
+    "bundle": "esbuild src/standalone.ts --bundle --outfile=dist/standalone.js --platform=node --format=cjs",
+    "dev": "tsc -w"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.2",
+    "dompurify": "^3.2.5",
+    "jsdom": "^26.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^20.17.50",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.8.3"
+  }
+}

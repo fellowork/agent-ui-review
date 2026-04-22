@@ -1,0 +1,46 @@
+{
+  "name": "ui-review-mcp",
+  "displayName": "UI Review MCP",
+  "description": "Human-in-the-loop HTML UI review via MCP and VS Code webview",
+  "version": "0.0.4",
+  "publisher": "local-dev",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "uiReview.openPanel",
+        "title": "Open UI Review Panel"
+      },
+      {
+        "command": "uiReview.configureWorkspace",
+        "title": "Configure UI Review MCP For This Workspace"
+      }
+    ]
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dompurify": "^3.0.0",
+    "jsdom": "^25.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0"
+  },
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "build:watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:jsdom --external:dompurify --external:@modelcontextprotocol/sdk --format=cjs --platform=node --sourcemap --watch",
+    "compile": "tsc --noEmit",
+    "vscode:prepublish": "npm run build"
+  }
+}
