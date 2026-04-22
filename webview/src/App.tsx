@@ -3,19 +3,24 @@ import { Preview } from "./components/Preview";
 import { Inspector } from "./components/Inspector";
 import { ApprovalBar } from "./components/ApprovalBar";
 import { postSubmit } from "./state";
-import type { ComponentAnnotation, ReviewState, ReviewStatus } from "./types";
+import type {
+  ComponentAnnotation,
+  ReviewState,
+  ReviewStatus,
+  SelectedComponentSnapshot,
+} from "./types";
 
 export function App() {
   const session = window.__REVIEW_SESSION__;
 
   const [generalComment, setGeneralComment] = useState("");
   const [annotations, setAnnotations] = useState<Record<string, ComponentAnnotation>>({});
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  const [selectedComponent, setSelectedComponent] = useState<SelectedComponentSnapshot | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<ReviewStatus | null>(null);
 
-  const handleSelectComponent = useCallback((id: string) => {
-    setSelectedComponentId(id);
+  const handleSelectComponent = useCallback((selection: SelectedComponentSnapshot) => {
+    setSelectedComponent(selection);
   }, []);
 
   const handleUpdateAnnotation = useCallback((annotation: ComponentAnnotation) => {
@@ -66,8 +71,8 @@ export function App() {
     );
   }
 
-  const selectedAnnotation = selectedComponentId
-    ? annotations[selectedComponentId]
+  const selectedAnnotation = selectedComponent
+    ? annotations[selectedComponent.componentId]
     : undefined;
 
   return (
@@ -76,37 +81,49 @@ export function App() {
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        background: "#1e1e1e",
-        color: "#d4d4d4",
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        background:
+          "radial-gradient(circle at top left, rgba(126, 211, 196, 0.1), transparent 35%), radial-gradient(circle at top right, rgba(255, 181, 107, 0.12), transparent 30%), var(--app-bg)",
+        color: "var(--app-text)",
+        fontFamily: "'Segoe UI', 'Aptos', sans-serif",
         overflow: "hidden",
       }}
     >
-      {/* Header */}
       <div
         style={{
-          padding: "8px 16px",
-          borderBottom: "1px solid #333",
-          fontSize: 13,
-          fontWeight: 600,
-          color: "#9cdcfe",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          padding: "14px 18px",
+          borderBottom: "1px solid var(--chrome-border)",
+          background: "rgba(10, 15, 24, 0.72)",
+          backdropFilter: "blur(14px)",
           flexShrink: 0,
         }}
       >
-        UI Review — Session {session.sessionId}
+        <div>
+          <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--app-muted)", fontWeight: 700 }}>
+            Review Mode
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#f3f6fb" }}>
+            UI Review Session {session.sessionId}
+          </div>
+        </div>
+        <div style={{ color: "var(--app-muted)", fontSize: 13, maxWidth: 420, textAlign: "right", lineHeight: 1.45 }}>
+          Click an element to inspect its live styles, adjust copy, and attach focused notes
+          before approving or requesting changes.
+        </div>
       </div>
 
-      {/* Main content */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* Preview area */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
         <div
           style={{
             flex: 1,
-            padding: 16,
+            padding: 18,
             overflowY: "auto",
             display: "flex",
             flexDirection: "column",
+            minHeight: 0,
           }}
         >
           <Preview
@@ -116,24 +133,25 @@ export function App() {
           />
         </div>
 
-        {/* Inspector sidebar */}
         <div
           style={{
-            width: 240,
-            borderLeft: "1px solid #333",
+            width: 360,
+            borderLeft: "1px solid var(--chrome-border)",
             overflowY: "auto",
             flexShrink: 0,
+            minHeight: 0,
+            background: "rgba(7, 10, 17, 0.72)",
+            backdropFilter: "blur(18px)",
           }}
         >
           <Inspector
-            componentId={selectedComponentId}
+            selection={selectedComponent}
             annotation={selectedAnnotation}
             onUpdate={handleUpdateAnnotation}
           />
         </div>
       </div>
 
-      {/* Approval bar */}
       <ApprovalBar
         generalComment={generalComment}
         onGeneralCommentChange={setGeneralComment}

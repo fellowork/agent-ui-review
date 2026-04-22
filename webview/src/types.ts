@@ -3,7 +3,23 @@ export type ReviewStatus = "approved" | "approved_with_notes" | "changes_request
 export interface ComponentAnnotation {
   componentId: string;
   comment: string;
+  textOverride?: string;
   styleOverrides: Record<string, string>;
+}
+
+export interface SelectedComponentSnapshot {
+  componentId: string;
+  tagName: string;
+  textContent: string;
+  isTextEditable: boolean;
+  styles: {
+    color: string;
+    backgroundColor: string;
+    fontSize: string;
+    fontWeight: string;
+    borderRadius: string;
+    textAlign: string;
+  };
 }
 
 export interface ReviewState {

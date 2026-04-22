@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { ComponentAnnotation } from "../types";
+import type { ComponentAnnotation, SelectedComponentSnapshot } from "../types";
 
 interface PreviewProps {
   html: string;
-  onSelectComponent: (componentId: string) => void;
+  onSelectComponent: (selection: SelectedComponentSnapshot) => void;
   annotations: Record<string, ComponentAnnotation>;
 }
 
@@ -30,11 +30,37 @@ function makeBlobUrl(html: string): string {
   return URL.createObjectURL(blob);
 }
 
+function captureSelection(el: HTMLElement): SelectedComponentSnapshot {
+  const computed = el.ownerDocument.defaultView?.getComputedStyle(el) ?? window.getComputedStyle(el);
+  const directText = Array.from(el.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent ?? "")
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return {
+    componentId: el.getAttribute("data-component-id") ?? "",
+    tagName: el.tagName.toLowerCase(),
+    textContent: directText || el.textContent?.replace(/\s+/g, " ").trim() || "",
+    isTextEditable: el.children.length === 0,
+    styles: {
+      color: computed.color,
+      backgroundColor: computed.backgroundColor,
+      fontSize: computed.fontSize,
+      fontWeight: computed.fontWeight,
+      borderRadius: computed.borderRadius,
+      textAlign: computed.textAlign,
+    },
+  };
+}
+
 /** Apply (or re-apply) style overrides from annotations directly into the iframe DOM. */
 function applyAnnotations(
   doc: Document,
   annotations: Record<string, ComponentAnnotation>,
   originalStyles: Map<string, string>,
+  originalTexts: Map<string, string>,
   selectedId: string | null
 ) {
   doc.querySelectorAll<HTMLElement>("[data-component-id]").forEach((el) => {
@@ -47,6 +73,10 @@ function applyAnnotations(
       for (const [prop, value] of Object.entries(ann.styleOverrides)) {
         el.style.setProperty(prop, value);
       }
+    }
+
+    if (originalTexts.has(id)) {
+      el.textContent = ann?.textOverride ?? originalTexts.get(id) ?? "";
     }
 
     // Visual markers
@@ -74,6 +104,8 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
   const contentDocRef = useRef<Document | null>(null);
   // Per-element original inline styles, captured on load.
   const originalStylesRef = useRef<Map<string, string>>(new Map());
+  // Original leaf-node text so text overrides can be applied and restored live.
+  const originalTextsRef = useRef<Map<string, string>>(new Map());
   // Track selected id so applyAnnotations can highlight it.
   const selectedIdRef = useRef<string | null>(null);
   // Keep annotations accessible inside imperative callbacks.
@@ -105,10 +137,16 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
 
       // Snapshot original inline styles before we touch anything.
       const origMap = new Map<string, string>();
+      const origTextMap = new Map<string, string>();
       doc.querySelectorAll<HTMLElement>("[data-component-id]").forEach((el) => {
-        origMap.set(el.getAttribute("data-component-id")!, el.getAttribute("style") ?? "");
+        const id = el.getAttribute("data-component-id")!;
+        origMap.set(id, el.getAttribute("style") ?? "");
+        if (el.children.length === 0) {
+          origTextMap.set(id, el.textContent ?? "");
+        }
       });
       originalStylesRef.current = origMap;
+      originalTextsRef.current = origTextMap;
 
       // Inject highlight stylesheet.
       if (!doc.getElementById("__review-styles__")) {
@@ -131,8 +169,14 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
           const id = el.getAttribute("data-component-id");
           if (id) {
             selectedIdRef.current = id;
-            applyAnnotations(doc, annotationsRef.current, originalStylesRef.current, id);
-            onSelectRef.current(id);
+            applyAnnotations(
+              doc,
+              annotationsRef.current,
+              originalStylesRef.current,
+              originalTextsRef.current,
+              id
+            );
+            onSelectRef.current(captureSelection(el));
           }
         }
       }
@@ -140,7 +184,7 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
       doc.addEventListener("click", handleClick, true /* capture */);
 
       // Apply any annotations that already exist (e.g. after html rebuild).
-      applyAnnotations(doc, annotationsRef.current, origMap, selectedIdRef.current);
+      applyAnnotations(doc, annotationsRef.current, origMap, origTextMap, selectedIdRef.current);
     }
 
     iframe.addEventListener("load", onLoad);
@@ -151,24 +195,47 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
   useEffect(() => {
     const doc = contentDocRef.current;
     if (!doc) return;
-    applyAnnotations(doc, annotations, originalStylesRef.current, selectedIdRef.current);
+    applyAnnotations(
+      doc,
+      annotations,
+      originalStylesRef.current,
+      originalTextsRef.current,
+      selectedIdRef.current
+    );
   }, [annotations]);
 
   return (
-    <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+        minWidth: 0,
+        borderRadius: 20,
+        padding: 12,
+        background: "rgba(255, 255, 255, 0.03)",
+        border: "1px solid var(--chrome-border)",
+        boxShadow: "0 22px 60px rgba(0, 0, 0, 0.18)",
+      }}
+    >
       {annotationCount > 0 && (
         <div
           style={{
             position: "absolute",
-            top: 8,
-            right: 8,
+            top: 18,
+            right: 18,
             zIndex: 10,
-            background: "#3b82f6",
-            color: "#fff",
-            borderRadius: 12,
-            padding: "2px 8px",
-            fontSize: 12,
-            fontWeight: 600,
+            background: "rgba(126, 211, 196, 0.14)",
+            color: "#d9fff5",
+            border: "1px solid rgba(126, 211, 196, 0.22)",
+            borderRadius: 999,
+            padding: "6px 10px",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
             pointerEvents: "none",
           }}
         >
@@ -182,11 +249,13 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
         sandbox="allow-scripts allow-same-origin"
         style={{
           width: "100%",
-          height: 600,
-          border: "1px solid #333",
-          borderRadius: 4,
+          flex: 1,
+          minHeight: 0,
+          border: "1px solid rgba(173, 201, 230, 0.18)",
+          borderRadius: 14,
           background: "#fff",
           display: "block",
+          boxShadow: "0 12px 30px rgba(0, 0, 0, 0.16)",
         }}
         title="UI Preview"
       />

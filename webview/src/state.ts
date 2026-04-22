@@ -12,6 +12,10 @@ export function buildReviewedHtml(state: ReviewState): string {
     );
     if (!el) continue;
 
+    if (annotation.textOverride !== undefined) {
+      el.textContent = annotation.textOverride;
+    }
+
     for (const [prop, value] of Object.entries(annotation.styleOverrides)) {
       el.style.setProperty(prop, value);
     }
