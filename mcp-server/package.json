@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "esbuild src/standalone.ts --bundle --outfile=dist/standalone.js --platform=node --format=cjs",
+    "bundle": "esbuild src/standalone.ts --bundle --outfile=dist/standalone.js --platform=node --format=cjs --external:jsdom",
     "dev": "tsc -w"
   },
   "dependencies": {
