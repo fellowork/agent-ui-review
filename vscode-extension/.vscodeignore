@@ -4,7 +4,3 @@ tsconfig.json
 .eslintrc*
 *.map
 !dist/**
-node_modules/**
-!node_modules/@modelcontextprotocol/**
-!node_modules/jsdom/**
-!node_modules/dompurify/**

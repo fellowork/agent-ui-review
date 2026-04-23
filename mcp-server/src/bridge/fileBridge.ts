@@ -2,9 +2,8 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync } from "
 import { join } from "path";
 import { tmpdir } from "os";
 import type { PendingSessionFile, CompletedSessionFile } from "./types.js";
-import type { ReviewGeneratedUiInput, ReviewResult, ReviewSession } from "../types.js";
+import type { PreparedReviewInput, ReviewResult, ReviewSession } from "../types.js";
 import { sessionStore } from "../sessions/store.js";
-import { sanitizeHtml, validateReviewHtml } from "../html/sanitize.js";
 import { randomUUID } from "crypto";
 
 const BRIDGE_DIR = join(tmpdir(), "ui-review-mcp");
@@ -79,15 +78,13 @@ export function waitForCompletion(sessionId: string): Promise<ReviewResult> {
  * High-level handler used by the standalone server tool.
  * Creates a session, writes the pending file, and waits for completion.
  */
-export async function handleReviewRequest(input: ReviewGeneratedUiInput): Promise<ReviewResult> {
+export async function handleReviewRequest(input: PreparedReviewInput): Promise<ReviewResult> {
   ensureBridgeDirs();
 
-  validateReviewHtml(input.html);
-  const sanitized = sanitizeHtml(input.html);
   const sessionId = randomUUID();
   const title = input.title ?? "Untitled Review";
 
-  const session = sessionStore.create(sessionId, title, sanitized);
+  const session = sessionStore.create(sessionId, title, input.html);
   if (input.instructions) session.instructions = input.instructions;
 
   writePendingSession(session);

@@ -2,7 +2,7 @@
   "name": "ui-review-mcp",
   "displayName": "UI Review MCP",
   "description": "Human-in-the-loop HTML UI review via MCP and VS Code webview",
-  "version": "0.0.4",
+  "version": "0.0.8",
   "publisher": "local-dev",
   "engines": {
     "vscode": "^1.85.0"

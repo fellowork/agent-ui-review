@@ -17,8 +17,19 @@ export interface ReviewResult {
   reviewedHtml: string;
 }
 
+export type ReviewSourceType = "html" | "typescript" | "tsx";
+
 export interface ReviewGeneratedUiInput {
+  html?: string;
+  source?: string;
+  sourceType?: ReviewSourceType;
+  instructions?: string;
+  title?: string;
+}
+
+export interface PreparedReviewInput {
   html: string;
   instructions?: string;
   title?: string;
+  sourceType: ReviewSourceType;
 }

@@ -31,6 +31,9 @@ console.log("\n[1] Sanitizer");
 const { sanitizeHtml, validateReviewHtml } = await import(
   pathToFileURL(join(__dirname, "mcp-server/dist/html/sanitize.js")).href
 );
+const { prepareReviewInput } = await import(
+  pathToFileURL(join(__dirname, "mcp-server/dist/html/prepareReviewInput.js")).href
+);
 
 const clean1 = sanitizeHtml(`<h1 data-component-id="t1" onclick="alert(1)">Hello</h1><script>evil()<\/script>`);
 assert("strips <script>", !clean1.includes("<script"));
@@ -66,6 +69,41 @@ try {
   tailwindCdnRejected = String(error).includes("Tailwind CDN");
 }
 assert("rejects Tailwind CDN prototypes", tailwindCdnRejected);
+
+const preparedTs = prepareReviewInput({
+  sourceType: "typescript",
+  source: `
+    const palette = { bg: "#112233", fg: "#f8fafc" };
+    export function render() {
+      return \
+        \`<!DOCTYPE html><html><head><style>body{margin:0;background:\${palette.bg};color:\${palette.fg}}</style></head><body><main data-component-id="hero">Typed prototype</main></body></html>\`;
+    }
+  `,
+});
+assert("renders self-contained TypeScript to sanitized HTML", preparedTs.html.includes("Typed prototype"));
+assert("keeps rendered data-component-id from TypeScript source", preparedTs.html.includes('data-component-id="hero"'));
+
+const preparedTsx = prepareReviewInput({
+  sourceType: "tsx",
+  source: `
+    const styles = "body{margin:0;background:#204;color:#fff} .card{padding:24px;border-radius:18px}";
+    export default function Prototype() {
+      return (
+        <html>
+          <head>
+            <style>{styles}</style>
+            <title>TSX Prototype</title>
+          </head>
+          <body>
+            <main className="card" data-component-id="card-root">TSX prototype</main>
+          </body>
+        </html>
+      );
+    }
+  `,
+});
+assert("renders TSX exports to sanitized HTML", preparedTsx.html.includes("TSX prototype"));
+assert("keeps stylesheet output from TSX source", preparedTsx.html.includes(".card{padding:24px;border-radius:18px}"));
 
 // ---------------------------------------------------------------------------
 // 2. Build outputs exist

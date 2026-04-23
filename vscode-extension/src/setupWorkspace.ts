@@ -2,14 +2,30 @@ import * as vscode from 'vscode';
 
 const SERVER_COMMAND_NAME = 'ui-review';
 const SERVER_RUNTIME_FILES = ['standalone.js', 'xhr-sync-worker.js'] as const;
+const SERVER_DEPENDENCY_SENTINELS = [
+  ['@modelcontextprotocol', 'sdk', 'package.json'],
+  ['dompurify', 'package.json'],
+  ['jsdom', 'package.json'],
+  ['tough-cookie', 'package.json'],
+] as const;
+const SERVER_INSTALL_METADATA = 'install-metadata.json';
 
 export async function ensureBundledServerInstalled(
   context: vscode.ExtensionContext,
 ): Promise<vscode.Uri> {
   const targetDir = vscode.Uri.joinPath(context.globalStorageUri, 'mcp-server');
   const targetUri = vscode.Uri.joinPath(targetDir, 'standalone.js');
+  const targetNodeModulesDir = vscode.Uri.joinPath(targetDir, 'node_modules');
+  const metadataUri = vscode.Uri.joinPath(targetDir, SERVER_INSTALL_METADATA);
+  const packagedNodeModulesDir = vscode.Uri.joinPath(context.extensionUri, 'node_modules');
+  const extensionVersion = String(context.extension.packageJSON.version ?? '0.0.0');
 
   await vscode.workspace.fs.createDirectory(targetDir);
+
+  const previousMetadata = await readInstallMetadata(metadataUri);
+  const shouldRefreshNodeModules =
+    previousMetadata?.version !== extensionVersion ||
+    !(await hasExpectedBundledDependencies(packagedNodeModulesDir, targetNodeModulesDir));
 
   for (const fileName of SERVER_RUNTIME_FILES) {
     const bundledUri = vscode.Uri.joinPath(context.extensionUri, 'dist', 'mcp-server', fileName);
@@ -27,6 +43,14 @@ export async function ensureBundledServerInstalled(
     if (shouldWrite) {
       await vscode.workspace.fs.writeFile(installedUri, bundledContents);
     }
+  }
+
+  if (shouldRefreshNodeModules) {
+    await replaceInstalledNodeModules(packagedNodeModulesDir, targetNodeModulesDir);
+    await vscode.workspace.fs.writeFile(
+      metadataUri,
+      Buffer.from(JSON.stringify({ version: extensionVersion }, null, 2), 'utf8'),
+    );
   }
 
   return targetUri;
@@ -154,5 +178,83 @@ async function readBundledServerFile(fileUri: vscode.Uri): Promise<Uint8Array> {
     throw new Error(
       'The bundled MCP server is missing from the extension package. Rebuild the extension before configuring a workspace.',
     );
+  }
+}
+
+async function readInstallMetadata(
+  metadataUri: vscode.Uri,
+): Promise<{ version?: string } | undefined> {
+  try {
+    const raw = await vscode.workspace.fs.readFile(metadataUri);
+    const parsed = JSON.parse(Buffer.from(raw).toString('utf8')) as unknown;
+    return isRecord(parsed) ? parsed as { version?: string } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function replaceInstalledNodeModules(
+  sourceDir: vscode.Uri,
+  targetDir: vscode.Uri,
+): Promise<void> {
+  await verifyPackagedDependencies(sourceDir);
+
+  try {
+    await vscode.workspace.fs.delete(targetDir, { recursive: true, useTrash: false });
+  } catch {
+    // Ignore missing directories.
+  }
+
+  try {
+    await vscode.workspace.fs.copy(sourceDir, targetDir, { overwrite: true });
+  } catch {
+    throw new Error(
+      'The packaged extension dependencies are missing. Reinstall or rebuild the UI Review MCP extension.',
+    );
+  }
+}
+
+async function hasExpectedBundledDependencies(
+  sourceDir: vscode.Uri,
+  targetDir: vscode.Uri,
+): Promise<boolean> {
+  for (const segments of SERVER_DEPENDENCY_SENTINELS) {
+    const sourceUri = vscode.Uri.joinPath(sourceDir, ...segments);
+    const targetUri = vscode.Uri.joinPath(targetDir, ...segments);
+
+    let sourceContents: Uint8Array;
+    let targetContents: Uint8Array;
+
+    try {
+      sourceContents = await vscode.workspace.fs.readFile(sourceUri);
+    } catch {
+      throw new Error(
+        'The bundled MCP server dependencies are incomplete in the extension package. Rebuild or reinstall the UI Review MCP extension.',
+      );
+    }
+
+    try {
+      targetContents = await vscode.workspace.fs.readFile(targetUri);
+    } catch {
+      return false;
+    }
+
+    if (Buffer.compare(Buffer.from(sourceContents), Buffer.from(targetContents)) !== 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function verifyPackagedDependencies(sourceDir: vscode.Uri): Promise<void> {
+  for (const segments of SERVER_DEPENDENCY_SENTINELS) {
+    try {
+      await vscode.workspace.fs.stat(vscode.Uri.joinPath(sourceDir, ...segments));
+    } catch {
+      throw new Error(
+        'The bundled MCP server dependencies are incomplete in the extension package. Rebuild or reinstall the UI Review MCP extension.',
+      );
+    }
   }
 }

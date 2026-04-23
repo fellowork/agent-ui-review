@@ -138,3 +138,12 @@ export function writeCompletedSession(
   fs.renameSync(tmpPath, finalPath);
   removeIfExists(pendingPath(sessionId));
 }
+
+/**
+ * Removes a pending review session without writing a completion result.
+ * Used when the user closes a review panel so stale sessions do not reopen
+ * on the next VS Code startup.
+ */
+export function discardPendingSession(sessionId: string): void {
+  removeIfExists(pendingPath(sessionId));
+}

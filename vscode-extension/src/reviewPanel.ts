@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ReviewSession } from '../../mcp-server/src/types';
-import { writeCompletedSession } from './fileBridge';
+import { discardPendingSession, writeCompletedSession } from './fileBridge';
 
 /**
  * Message sent from the webview to the extension host when the user
@@ -20,6 +20,7 @@ export class ReviewPanel {
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _sessionId: string;
   private _submitted = false;
+  private _disposed = false;
 
   private constructor(panel: vscode.WebviewPanel, session: ReviewSession, extensionUri: vscode.Uri) {
     this._panel = panel;
@@ -69,9 +70,19 @@ export class ReviewPanel {
   }
 
   dispose(): void {
+    if (this._disposed) {
+      return;
+    }
+    this._disposed = true;
+
+    if (!this._submitted) {
+      discardPendingSession(this._sessionId);
+    }
+
     // If closed without submitting, the standalone server's poll will time out
     // and return an error to the agent automatically.
     this._panel.dispose();
+
     while (this._disposables.length) {
       const d = this._disposables.pop();
       d?.dispose();
