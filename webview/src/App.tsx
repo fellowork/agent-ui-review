@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Preview } from "./components/Preview";
 import { Inspector } from "./components/Inspector";
 import { ApprovalBar } from "./components/ApprovalBar";
@@ -12,12 +12,23 @@ import type {
 
 export function App() {
   const session = window.__REVIEW_SESSION__;
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const [generalComment, setGeneralComment] = useState("");
   const [annotations, setAnnotations] = useState<Record<string, ComponentAnnotation>>({});
   const [selectedComponent, setSelectedComponent] = useState<SelectedComponentSnapshot | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<ReviewStatus | null>(null);
+  const [inspectorWidth, setInspectorWidth] = useState(360);
+  const [isResizingInspector, setIsResizingInspector] = useState(false);
+
+  const clampInspectorWidth = (nextWidth: number) => {
+    const layoutWidth = layoutRef.current?.clientWidth ?? 0;
+    const minWidth = 280;
+    const maxWidth = layoutWidth > 0 ? Math.max(minWidth, Math.min(640, layoutWidth - 320)) : 640;
+    return Math.max(minWidth, Math.min(maxWidth, nextWidth));
+  };
 
   const handleSelectComponent = useCallback((selection: SelectedComponentSnapshot) => {
     setSelectedComponent(selection);
@@ -42,6 +53,57 @@ export function App() {
     },
     [session, generalComment, annotations]
   );
+
+  const handleInspectorResizeStart = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      resizeStateRef.current = {
+        startX: event.clientX,
+        startWidth: inspectorWidth,
+      };
+      setIsResizingInspector(true);
+    },
+    [inspectorWidth]
+  );
+
+  useEffect(() => {
+    if (!isResizingInspector) {
+      return undefined;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const state = resizeStateRef.current;
+      if (!state) {
+        return;
+      }
+
+      const delta = state.startX - event.clientX;
+      setInspectorWidth(clampInspectorWidth(state.startWidth + delta));
+    };
+
+    const handleMouseUp = () => {
+      resizeStateRef.current = null;
+      setIsResizingInspector(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingInspector]);
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setInspectorWidth((currentWidth) => clampInspectorWidth(currentWidth));
+    };
+
+    handleWindowResize();
+    window.addEventListener("resize", handleWindowResize);
+    return () => window.removeEventListener("resize", handleWindowResize);
+  }, []);
 
   if (submitted) {
     const labels: Record<ReviewStatus, string> = {
@@ -86,6 +148,7 @@ export function App() {
         color: "var(--app-text)",
         fontFamily: "'Segoe UI', 'Aptos', sans-serif",
         overflow: "hidden",
+        userSelect: isResizingInspector ? "none" : undefined,
       }}
     >
       <div
@@ -115,7 +178,7 @@ export function App() {
         </div>
       </div>
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
+      <div ref={layoutRef} style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
         <div
           style={{
             flex: 1,
@@ -134,8 +197,37 @@ export function App() {
         </div>
 
         <div
+          role="separator"
+          aria-label="Resize inspector"
+          aria-orientation="vertical"
+          onMouseDown={handleInspectorResizeStart}
           style={{
-            width: 360,
+            width: 12,
+            flexShrink: 0,
+            cursor: "col-resize",
+            position: "relative",
+            background: isResizingInspector ? "rgba(126, 211, 196, 0.08)" : "transparent",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 18,
+              bottom: 18,
+              left: "50%",
+              width: 2,
+              transform: "translateX(-50%)",
+              borderRadius: 999,
+              background: isResizingInspector
+                ? "rgba(126, 211, 196, 0.9)"
+                : "rgba(173, 201, 230, 0.24)",
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            width: inspectorWidth,
             borderLeft: "1px solid var(--chrome-border)",
             overflowY: "auto",
             flexShrink: 0,
@@ -157,6 +249,18 @@ export function App() {
         onGeneralCommentChange={setGeneralComment}
         onSubmit={handleSubmit}
       />
+
+      {isResizingInspector && (
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            inset: 0,
+            cursor: "col-resize",
+            zIndex: 20,
+          }}
+        />
+      )}
     </div>
   );
 }

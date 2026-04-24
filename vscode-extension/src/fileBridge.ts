@@ -1,20 +1,17 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 import type { ReviewSession } from "../../mcp-server/src/types";
 import type { PendingSessionFile, CompletedSessionFile } from "../../mcp-server/src/bridge/types";
+import { getBridgeDirectories } from "../../mcp-server/src/bridge/paths";
 
-const BRIDGE_DIR = path.join(os.tmpdir(), "ui-review-mcp");
-const PENDING_DIR = path.join(BRIDGE_DIR, "pending");
-const COMPLETED_DIR = path.join(BRIDGE_DIR, "completed");
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 
-function pendingPath(sessionId: string): string {
-  return path.join(PENDING_DIR, `${sessionId}.json`);
+function pendingPath(baseDir: string, sessionId: string): string {
+  return path.join(baseDir, `${sessionId}.json`);
 }
 
-function completedPath(sessionId: string): string {
-  return path.join(COMPLETED_DIR, `${sessionId}.json`);
+function completedPath(baseDir: string, sessionId: string): string {
+  return path.join(baseDir, `${sessionId}.json`);
 }
 
 function removeIfExists(filePath: string): void {
@@ -28,12 +25,29 @@ function removeIfExists(filePath: string): void {
   }
 }
 
-function shouldDiscardPendingSession(data: PendingSessionFile): boolean {
+function shouldDiscardPendingSession(data: PendingSessionFile, completedDir: string): boolean {
   const createdAt = Date.parse(data.createdAt);
-  const hasCompletion = fs.existsSync(completedPath(data.sessionId));
+  const hasCompletion = fs.existsSync(completedPath(completedDir, data.sessionId));
   const isExpired = Number.isFinite(createdAt) && Date.now() - createdAt > SESSION_TIMEOUT_MS;
 
   return hasCompletion || isExpired;
+}
+
+function getWorkspaceBridgeDirs(workspacePaths: readonly string[]): Array<{
+  scope?: string;
+  bridgeDir: string;
+  pendingDir: string;
+  completedDir: string;
+}> {
+  const uniqueWorkspacePaths = Array.from(new Set(workspacePaths.filter((value) => value.trim())));
+  if (uniqueWorkspacePaths.length === 0) {
+    return [{ scope: undefined, ...getBridgeDirectories() }];
+  }
+
+  return uniqueWorkspacePaths.map((workspacePath) => ({
+    scope: workspacePath,
+    ...getBridgeDirectories(workspacePath),
+  }));
 }
 
 /**
@@ -42,51 +56,61 @@ function shouldDiscardPendingSession(data: PendingSessionFile): boolean {
  * Returns a disposable that stops the watcher.
  */
 export function watchPendingSessions(
+  workspacePaths: readonly string[],
   onNewSession: (session: ReviewSession) => void,
 ): { dispose: () => void } {
-  fs.mkdirSync(PENDING_DIR, { recursive: true });
-  fs.mkdirSync(COMPLETED_DIR, { recursive: true });
+  const bridgeDirs = getWorkspaceBridgeDirs(workspacePaths);
+  for (const dirs of bridgeDirs) {
+    fs.mkdirSync(dirs.pendingDir, { recursive: true });
+    fs.mkdirSync(dirs.completedDir, { recursive: true });
+  }
 
   const seen = new Set<string>();
 
   function checkForNew() {
-    let entries: string[];
-    try {
-      entries = fs.readdirSync(PENDING_DIR);
-    } catch {
-      return;
-    }
-
-    for (const entry of entries) {
-      if (!entry.endsWith(".json") || seen.has(entry)) continue;
-      seen.add(entry);
-
-      const filePath = path.join(PENDING_DIR, entry);
+    for (const dirs of bridgeDirs) {
+      let entries: string[];
       try {
-        const raw = fs.readFileSync(filePath, "utf-8");
-        const data = JSON.parse(raw) as PendingSessionFile;
-
-        if (shouldDiscardPendingSession(data)) {
-          removeIfExists(filePath);
-          continue;
-        }
-
-        const session: ReviewSession = {
-          sessionId: data.sessionId,
-          title: data.title,
-          instructions: data.instructions,
-          originalHtml: data.html,
-          reviewedHtml: null,
-          status: null,
-          createdAt: new Date(data.createdAt),
-          completedAt: null,
-          resolve: null,
-        };
-
-        onNewSession(session);
+        entries = fs.readdirSync(dirs.pendingDir);
       } catch {
-        // File may still be mid-write — will retry on next poll
-        seen.delete(entry);
+        continue;
+      }
+
+      for (const entry of entries) {
+        if (!entry.endsWith(".json")) continue;
+
+        const seenKey = `${dirs.pendingDir}:${entry}`;
+        if (seen.has(seenKey)) continue;
+        seen.add(seenKey);
+
+        const filePath = path.join(dirs.pendingDir, entry);
+        try {
+          const raw = fs.readFileSync(filePath, "utf-8");
+          const data = JSON.parse(raw) as PendingSessionFile;
+
+          if (shouldDiscardPendingSession(data, dirs.completedDir)) {
+            removeIfExists(filePath);
+            continue;
+          }
+
+          const session: ReviewSession = {
+            sessionId: data.sessionId,
+            title: data.title,
+            instructions: data.instructions,
+            bridgeScope: dirs.scope ?? 'global',
+            originalHtml: data.html,
+            reviewedHtml: null,
+            status: null,
+            createdAt: new Date(data.createdAt),
+            completedAt: null,
+            resolve: null,
+          };
+
+          onNewSession(session);
+        } catch {
+          // File may still be mid-write — will retry on next poll
+          seen.delete(seenKey);
+        }
       }
     }
   }
@@ -94,11 +118,13 @@ export function watchPendingSessions(
   // Initial check for sessions already waiting.
   checkForNew();
 
-  let watcher: fs.FSWatcher | undefined;
-  try {
-    watcher = fs.watch(PENDING_DIR, () => checkForNew());
-  } catch {
-    // fs.watch may not be available in all environments; fall back to polling.
+  const watchers: fs.FSWatcher[] = [];
+  for (const dirs of bridgeDirs) {
+    try {
+      watchers.push(fs.watch(dirs.pendingDir, () => checkForNew()));
+    } catch {
+      // fs.watch may not be available in all environments; fall back to polling.
+    }
   }
 
   // Fallback poll every 1s to handle environments where fs.watch is unreliable.
@@ -106,7 +132,9 @@ export function watchPendingSessions(
 
   return {
     dispose() {
-      watcher?.close();
+      for (const watcher of watchers) {
+        watcher.close();
+      }
       clearInterval(interval);
     },
   };
@@ -117,11 +145,13 @@ export function watchPendingSessions(
  * MCP server can pick it up and return it to the agent.
  */
 export function writeCompletedSession(
+  bridgeScope: string,
   sessionId: string,
   status: "approved" | "approved_with_notes" | "changes_requested",
   reviewedHtml: string,
 ): void {
-  fs.mkdirSync(COMPLETED_DIR, { recursive: true });
+  const dirs = getBridgeDirectories(bridgeScope === 'global' ? undefined : bridgeScope);
+  fs.mkdirSync(dirs.completedDir, { recursive: true });
 
   const payload: CompletedSessionFile = {
     sessionId,
@@ -130,13 +160,13 @@ export function writeCompletedSession(
     completedAt: new Date().toISOString(),
   };
 
-  const tmpPath = path.join(COMPLETED_DIR, `${sessionId}.tmp`);
-  const finalPath = path.join(COMPLETED_DIR, `${sessionId}.json`);
+  const tmpPath = path.join(dirs.completedDir, `${sessionId}.tmp`);
+  const finalPath = path.join(dirs.completedDir, `${sessionId}.json`);
 
   // Write to .tmp first, then rename atomically so the server doesn't read a partial file.
   fs.writeFileSync(tmpPath, JSON.stringify(payload, null, 2), "utf-8");
   fs.renameSync(tmpPath, finalPath);
-  removeIfExists(pendingPath(sessionId));
+  removeIfExists(pendingPath(dirs.pendingDir, sessionId));
 }
 
 /**
@@ -145,5 +175,10 @@ export function writeCompletedSession(
  * on the next VS Code startup.
  */
 export function discardPendingSession(sessionId: string): void {
-  removeIfExists(pendingPath(sessionId));
+  removeIfExists(pendingPath(getBridgeDirectories().pendingDir, sessionId));
+}
+
+export function discardPendingSessionInScope(bridgeScope: string, sessionId: string): void {
+  const dirs = getBridgeDirectories(bridgeScope === 'global' ? undefined : bridgeScope);
+  removeIfExists(pendingPath(dirs.pendingDir, sessionId));
 }

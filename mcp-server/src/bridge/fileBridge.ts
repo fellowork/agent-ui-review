@@ -1,20 +1,25 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
 import type { PendingSessionFile, CompletedSessionFile } from "./types.js";
 import type { PreparedReviewInput, ReviewResult, ReviewSession } from "../types.js";
 import { sessionStore } from "../sessions/store.js";
 import { randomUUID } from "crypto";
+import { getBridgeDirectories } from "./paths.js";
 
-const BRIDGE_DIR = join(tmpdir(), "ui-review-mcp");
-const PENDING_DIR = join(BRIDGE_DIR, "pending");
-const COMPLETED_DIR = join(BRIDGE_DIR, "completed");
 const POLL_INTERVAL_MS = 500;
 const TIMEOUT_MS = 10 * 60 * 1000;
 
+function getPendingDir(): string {
+  return getBridgeDirectories().pendingDir;
+}
+
+function getCompletedDir(): string {
+  return getBridgeDirectories().completedDir;
+}
+
 export function ensureBridgeDirs(): void {
-  mkdirSync(PENDING_DIR, { recursive: true });
-  mkdirSync(COMPLETED_DIR, { recursive: true });
+  mkdirSync(getPendingDir(), { recursive: true });
+  mkdirSync(getCompletedDir(), { recursive: true });
 }
 
 export function writePendingSession(session: ReviewSession): void {
@@ -26,18 +31,18 @@ export function writePendingSession(session: ReviewSession): void {
     createdAt: session.createdAt.toISOString(),
   };
   writeFileSync(
-    join(PENDING_DIR, `${session.sessionId}.json`),
+    join(getPendingDir(), `${session.sessionId}.json`),
     JSON.stringify(payload, null, 2),
     "utf-8",
   );
 }
 
 export function completedPath(sessionId: string): string {
-  return join(COMPLETED_DIR, `${sessionId}.json`);
+  return join(getCompletedDir(), `${sessionId}.json`);
 }
 
 export function cleanupSession(sessionId: string): void {
-  const pending = join(PENDING_DIR, `${sessionId}.json`);
+  const pending = join(getPendingDir(), `${sessionId}.json`);
   const completed = completedPath(sessionId);
   if (existsSync(pending)) unlinkSync(pending);
   if (existsSync(completed)) unlinkSync(completed);

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { UI_REVIEW_BRIDGE_SCOPE_ENV } from '../../mcp-server/src/bridge/paths';
 
 const SERVER_COMMAND_NAME = 'ui-review';
 const SERVER_RUNTIME_FILES = ['standalone.js', 'xhr-sync-worker.js'] as const;
@@ -76,6 +77,9 @@ export function registerConfigureWorkspaceCommand(
         type: 'stdio',
         command: 'node',
         args: [serverUri.fsPath],
+        env: {
+          [UI_REVIEW_BRIDGE_SCOPE_ENV]: workspaceFolder.uri.fsPath,
+        },
       };
 
       const nextConfig = {

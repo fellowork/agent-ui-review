@@ -8,7 +8,7 @@ This repo contains a VS Code-hosted review flow for agent-generated HTML. It can
 2. In the target workspace, run the command `UI Review MCP: Configure UI Review MCP For This Workspace` from the Command Palette.
 3. Reload VS Code when prompted.
 
-That command writes `.vscode/mcp.json` for the selected workspace folder and points it at a stable copy of the bundled standalone server under the extension's global storage area.
+That command writes `.vscode/mcp.json` for the selected workspace folder, points it at a stable copy of the bundled standalone server under the extension's global storage area, and scopes the temp-file bridge to that workspace so review panels do not appear in unrelated VS Code windows.
 
 ## Agent workflow
 
@@ -25,4 +25,4 @@ Run `npm run build` in `vscode-extension`. That build now does all of the follow
 - builds the extension host bundle
 - copies the standalone MCP server into `vscode-extension/dist/mcp-server/standalone.js`
 
-The checked-in `.vscode/mcp.json` in this repo still targets the workspace-local `mcp-server/dist/standalone.js` so local development remains straightforward.
+The checked-in `.vscode/mcp.json` in this repo still targets the workspace-local `mcp-server/dist/standalone.js` and includes the same workspace bridge scope so local development remains straightforward.

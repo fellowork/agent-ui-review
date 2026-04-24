@@ -4,6 +4,7 @@ export interface ReviewSession {
   sessionId: string;
   title: string;
   instructions?: string;
+  bridgeScope?: string;
   originalHtml: string;
   reviewedHtml: string | null;
   status: ReviewStatus | null;

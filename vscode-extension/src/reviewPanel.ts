@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ReviewSession } from '../../mcp-server/src/types';
-import { discardPendingSession, writeCompletedSession } from './fileBridge';
+import { discardPendingSession, discardPendingSessionInScope, writeCompletedSession } from './fileBridge';
 
 /**
  * Message sent from the webview to the extension host when the user
@@ -18,12 +18,14 @@ type WebviewMessage = SubmitReviewMessage;
 export class ReviewPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _disposables: vscode.Disposable[] = [];
+  private readonly _bridgeScope?: string;
   private readonly _sessionId: string;
   private _submitted = false;
   private _disposed = false;
 
   private constructor(panel: vscode.WebviewPanel, session: ReviewSession, extensionUri: vscode.Uri) {
     this._panel = panel;
+    this._bridgeScope = session.bridgeScope;
     this._sessionId = session.sessionId;
 
     // Set initial HTML content.
@@ -34,7 +36,7 @@ export class ReviewPanel {
       (message: WebviewMessage) => {
         if (message.type === 'submitReview') {
           this._submitted = true;
-          writeCompletedSession(message.sessionId, message.status, message.reviewedHtml);
+          writeCompletedSession(this._bridgeScope ?? 'global', message.sessionId, message.status, message.reviewedHtml);
           this._panel.dispose();
         }
       },
@@ -76,7 +78,11 @@ export class ReviewPanel {
     this._disposed = true;
 
     if (!this._submitted) {
-      discardPendingSession(this._sessionId);
+      if (this._bridgeScope) {
+        discardPendingSessionInScope(this._bridgeScope, this._sessionId);
+      } else {
+        discardPendingSession(this._sessionId);
+      }
     }
 
     // If closed without submitting, the standalone server's poll will time out

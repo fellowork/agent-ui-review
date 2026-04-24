@@ -12,12 +12,14 @@ export function activate(context: vscode.ExtensionContext): void {
     console.error('UI Review MCP: failed to refresh bundled MCP server', error);
   });
 
+  const workspacePaths = (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+
   // ------------------------------------------------------------------
   // Watch the OS temp bridge directory for pending review sessions.
   // The standalone MCP server (node dist/standalone.js) writes session
   // files there when an agent calls review_generated_ui.
   // ------------------------------------------------------------------
-  const watcher = watchPendingSessions((session: ReviewSession) => {
+  const watcher = watchPendingSessions(workspacePaths, (session: ReviewSession) => {
     ReviewPanel.create(context.extensionUri, session);
   });
 
