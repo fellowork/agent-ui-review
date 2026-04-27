@@ -1,14 +1,20 @@
-import { ReviewResult, ReviewSession } from "../types";
+import { ReviewResult, ReviewSession, ReviewSessionOption } from "../types";
 
 class SessionStore {
   private readonly sessions = new Map<string, ReviewSession>();
   private readonly rejects = new Map<string, (reason: Error) => void>();
 
-  create(sessionId: string, title: string, html: string): ReviewSession {
+  create(sessionId: string, title: string, options: ReviewSessionOption[]): ReviewSession {
+    if (options.length === 0) {
+      throw new Error("Review sessions require at least one option.");
+    }
+
     const session: ReviewSession = {
       sessionId,
       title,
-      originalHtml: html,
+      options,
+      selectedOptionId: options[0].id,
+      originalHtml: options[0].html,
       reviewedHtml: null,
       status: null,
       createdAt: new Date(),
@@ -30,6 +36,7 @@ class SessionStore {
     }
     session.reviewedHtml = result.reviewedHtml;
     session.status = result.status;
+    session.selectedOptionId = result.selectedOptionId;
     session.completedAt = new Date();
     if (session.resolve) {
       session.resolve(result);

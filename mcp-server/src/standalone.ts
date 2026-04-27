@@ -49,7 +49,12 @@ server.setRequestHandler(
       const input = (args ?? {}) as unknown as ReviewGeneratedUiInput;
       const prepared = prepareReviewInput(input);
       const result = await handleReviewRequest(prepared);
-      const reviewSummary = summarizeReviewResult(prepared.html, result);
+      const selectedOption = prepared.options.find((option) => option.id === result.selectedOptionId);
+      const reviewSummary = summarizeReviewResult(
+        selectedOption?.html ?? prepared.options[0].html,
+        result,
+        selectedOption?.label,
+      );
       return {
         content: [
           {
@@ -60,7 +65,9 @@ server.setRequestHandler(
             type: "text" as const,
             text: JSON.stringify({
               status: result.status,
+              selectedOptionId: result.selectedOptionId,
               reviewedHtml: result.reviewedHtml,
+              reviewerNote: reviewSummary.generalComment,
               reviewSummary,
             }),
           },

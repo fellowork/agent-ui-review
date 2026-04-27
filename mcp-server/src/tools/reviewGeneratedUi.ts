@@ -26,7 +26,11 @@ export function createReviewGeneratedUiTool(
     const sessionId = randomUUID();
     const title = prepared.title ?? "Untitled Review";
 
-    const session = sessionStore.create(sessionId, title, prepared.html);
+    const session = sessionStore.create(
+      sessionId,
+      title,
+      prepared.options.map(({ id, label, description, html }) => ({ id, label, description, html })),
+    );
     if (prepared.instructions) session.instructions = prepared.instructions;
 
     // Default timeout: 10 minutes. The reviewer must submit before then.
@@ -42,18 +46,27 @@ export function createReviewGeneratedUiTool(
       }, TIMEOUT_MS);
     });
 
+    const selectedOption = prepared.options.find((option) => option.id === result.selectedOptionId);
+    const reviewSummary = summarizeReviewResult(
+      selectedOption?.html ?? prepared.options[0].html,
+      result,
+      selectedOption?.label,
+    );
+
     return {
       content: [
         {
           type: "text",
-          text: formatReviewSummary(summarizeReviewResult(prepared.html, result)),
+          text: formatReviewSummary(reviewSummary),
         },
         {
           type: "text",
           text: JSON.stringify({
             status: result.status,
+            selectedOptionId: result.selectedOptionId,
             reviewedHtml: result.reviewedHtml,
-            reviewSummary: summarizeReviewResult(prepared.html, result),
+            reviewerNote: reviewSummary.generalComment,
+            reviewSummary,
           }),
         },
       ],

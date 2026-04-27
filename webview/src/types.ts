@@ -1,5 +1,12 @@
 export type ReviewStatus = "approved" | "approved_with_notes" | "changes_requested";
 
+export interface ReviewOption {
+  id: string;
+  label: string;
+  description?: string;
+  html: string;
+}
+
 export interface ComponentAnnotation {
   componentId: string;
   comment: string;
@@ -24,15 +31,24 @@ export interface SelectedComponentSnapshot {
 
 export interface ReviewState {
   sessionId: string;
+  selectedOptionId: string;
   originalHtml: string;
   generalComment: string;
   annotations: Record<string, ComponentAnnotation>;
   status: ReviewStatus | null;
 }
 
+export interface ReviewSessionPayload {
+  sessionId: string;
+  title: string;
+  instructions: string;
+  options: ReviewOption[];
+  selectedOptionId: string | null;
+}
+
 declare global {
   interface Window {
-    __REVIEW_SESSION__: { sessionId: string; html: string };
+    __REVIEW_SESSION__: ReviewSessionPayload;
     acquireVsCodeApi: () => { postMessage: (msg: unknown) => void };
   }
 }

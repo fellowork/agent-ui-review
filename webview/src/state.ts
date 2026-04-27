@@ -56,6 +56,7 @@ export function postSubmit(state: ReviewState): void {
     type: "submitReview",
     sessionId: state.sessionId,
     status: state.status,
+    selectedOptionId: state.selectedOptionId,
     reviewedHtml: buildReviewedHtml(state),
   });
 }

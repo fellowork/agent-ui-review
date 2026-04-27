@@ -1,11 +1,11 @@
-import type { ReviewResult, ReviewStatus } from "../types.js";
+import type { ReviewSessionOption, ReviewStatus } from "../types.js";
 
 /** Written by the standalone server when a new review session arrives. */
 export interface PendingSessionFile {
   sessionId: string;
   title: string;
   instructions?: string;
-  html: string;
+  options: ReviewSessionOption[];
   createdAt: string;
 }
 
@@ -13,6 +13,7 @@ export interface PendingSessionFile {
 export interface CompletedSessionFile {
   sessionId: string;
   status: ReviewStatus;
+  selectedOptionId: string;
   reviewedHtml: string;
   completedAt: string;
 }

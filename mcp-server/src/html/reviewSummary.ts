@@ -12,6 +12,8 @@ interface ComponentReviewSummary {
 
 export interface ReviewSummary {
   status: ReviewResult["status"];
+  selectedOptionId: string;
+  selectedOptionLabel: string | null;
   generalComment: string | null;
   componentSummaries: ComponentReviewSummary[];
 }
@@ -78,7 +80,11 @@ function getDirectGeneralComment(document: Document): string | null {
   return normalized ? normalized : null;
 }
 
-export function summarizeReviewResult(originalHtml: string, result: ReviewResult): ReviewSummary {
+export function summarizeReviewResult(
+  originalHtml: string,
+  result: ReviewResult,
+  selectedOptionLabel?: string,
+): ReviewSummary {
   const originalDom = new JSDOM(originalHtml);
   const reviewedDom = new JSDOM(result.reviewedHtml);
   const originalElements = buildElementMap(originalDom.window.document);
@@ -111,6 +117,8 @@ export function summarizeReviewResult(originalHtml: string, result: ReviewResult
 
   return {
     status: result.status,
+    selectedOptionId: result.selectedOptionId,
+    selectedOptionLabel: selectedOptionLabel ?? null,
     generalComment: getDirectGeneralComment(reviewedDocument),
     componentSummaries,
   };
@@ -119,6 +127,9 @@ export function summarizeReviewResult(originalHtml: string, result: ReviewResult
 export function formatReviewSummary(summary: ReviewSummary): string {
   const lines: string[] = [];
   lines.push(`Review status: ${summary.status}`);
+  if (summary.selectedOptionLabel) {
+    lines.push(`Selected option: ${summary.selectedOptionLabel} (${summary.selectedOptionId})`);
+  }
   lines.push("Treat reviewedHtml as the authoritative updated prototype for the next iteration.");
 
   if (summary.generalComment) {

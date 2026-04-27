@@ -98,7 +98,9 @@ export function watchPendingSessions(
             title: data.title,
             instructions: data.instructions,
             bridgeScope: dirs.scope ?? 'global',
-            originalHtml: data.html,
+            options: data.options,
+            selectedOptionId: data.options[0]?.id ?? null,
+            originalHtml: data.options[0]?.html ?? '',
             reviewedHtml: null,
             status: null,
             createdAt: new Date(data.createdAt),
@@ -148,6 +150,7 @@ export function writeCompletedSession(
   bridgeScope: string,
   sessionId: string,
   status: "approved" | "approved_with_notes" | "changes_requested",
+  selectedOptionId: string,
   reviewedHtml: string,
 ): void {
   const dirs = getBridgeDirectories(bridgeScope === 'global' ? undefined : bridgeScope);
@@ -156,6 +159,7 @@ export function writeCompletedSession(
   const payload: CompletedSessionFile = {
     sessionId,
     status,
+    selectedOptionId,
     reviewedHtml,
     completedAt: new Date().toISOString(),
   };

@@ -10,6 +10,7 @@ interface SubmitReviewMessage {
   type: 'submitReview';
   sessionId: string;
   status: 'approved' | 'approved_with_notes' | 'changes_requested';
+  selectedOptionId: string;
   reviewedHtml: string;
 }
 
@@ -36,7 +37,13 @@ export class ReviewPanel {
       (message: WebviewMessage) => {
         if (message.type === 'submitReview') {
           this._submitted = true;
-          writeCompletedSession(this._bridgeScope ?? 'global', message.sessionId, message.status, message.reviewedHtml);
+          writeCompletedSession(
+            this._bridgeScope ?? 'global',
+            message.sessionId,
+            message.status,
+            message.selectedOptionId,
+            message.reviewedHtml,
+          );
           this._panel.dispose();
         }
       },
@@ -116,7 +123,8 @@ export class ReviewPanel {
     // Serialise only what the webview needs; avoid leaking internal state.
     const sessionData = JSON.stringify({
       sessionId: session.sessionId,
-      html: session.originalHtml,
+      options: session.options,
+      selectedOptionId: session.selectedOptionId ?? session.options[0]?.id ?? null,
       title: session.title ?? '',
       instructions: session.instructions ?? '',
     });

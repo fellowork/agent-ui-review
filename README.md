@@ -25,8 +25,10 @@ This is not a design tool or a Figma replacement. It is a lightweight approval s
 - Accepts either:
 	- self-contained HTML
 	- self-contained TypeScript or TSX that resolves to final HTML
+	- a structured `options` array so the reviewer can choose between multiple UI directions in one session
 - Opens a VS Code review panel for the submitted UI
 - Lets the reviewer:
+	- switch between named options when multiple directions are provided
 	- click tagged elements in the preview
 	- inspect live styles
 	- override text content when safe
@@ -34,7 +36,7 @@ This is not a design tool or a Figma replacement. It is a lightweight approval s
 	- leave per-element comments
 	- leave a general review summary
 	- approve, approve with notes, or request changes
-- Returns reviewed HTML and review status back to the caller
+- Returns reviewed HTML, the selected option id, and review status back to the caller
 
 ## How the workflow works
 
@@ -54,6 +56,14 @@ review_generated_ui({
 	html?: string,
 	source?: string,
 	sourceType?: "html" | "typescript" | "tsx",
+	options?: Array<{
+		id: string,
+		label: string,
+		description?: string,
+		html?: string,
+		source?: string,
+		sourceType?: "html" | "typescript" | "tsx",
+	}>,
 	instructions?: string,
 	title?: string,
 })
@@ -63,8 +73,9 @@ Behavior notes:
 
 - `html` is the simplest and preferred input.
 - `source` with `sourceType` is supported for self-contained TypeScript and TSX prototypes.
+- `options` is the preferred path when the agent needs the reviewer to choose between multiple UI alternatives in one pass.
 - TypeScript and TSX prototypes must not import external modules.
-- Returned output includes the final status and reviewed HTML.
+- Returned output includes the final status, `selectedOptionId`, and reviewed HTML.
 
 ## Who this is for
 

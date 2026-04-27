@@ -1,6 +1,12 @@
 import vm from "vm";
 import ts from "typescript";
-import { ReviewGeneratedUiInput, ReviewSourceType, PreparedReviewInput } from "../types";
+import {
+  PreparedReviewInput,
+  PreparedReviewOption,
+  ReviewGeneratedUiInput,
+  ReviewOptionInput,
+  ReviewSourceType,
+} from "../types";
 import { sanitizeHtml, validateReviewHtml } from "./sanitize";
 
 const RENDER_TIMEOUT_MS = 250;
@@ -263,7 +269,11 @@ function renderTypescriptPrototype(source: string, sourceType: ReviewSourceType)
   return html;
 }
 
-function inferInputSource(input: ReviewGeneratedUiInput): { sourceType: ReviewSourceType; source: string } {
+function inferInputSource(input: {
+  html?: string;
+  source?: string;
+  sourceType?: ReviewSourceType;
+}): { sourceType: ReviewSourceType; source: string } {
   if (input.sourceType) {
     const source = (input.source ?? input.html)?.trim();
     if (!source) {
@@ -285,16 +295,63 @@ function inferInputSource(input: ReviewGeneratedUiInput): { sourceType: ReviewSo
   throw new Error("review_generated_ui requires either `html` or a `source` plus `sourceType`.");
 }
 
-export function prepareReviewInput(input: ReviewGeneratedUiInput): PreparedReviewInput {
+function prepareOption(input: ReviewOptionInput): PreparedReviewOption {
+  const optionId = input.id?.trim();
+  const label = input.label?.trim();
+
+  if (!optionId) {
+    throw new Error("review_generated_ui option ids must be non-empty strings.");
+  }
+
+  if (!label) {
+    throw new Error(`review_generated_ui option \"${optionId}\" requires a non-empty label.`);
+  }
+
   const { sourceType, source } = inferInputSource(input);
   const rawHtml = sourceType === "html" ? source : renderTypescriptPrototype(source, sourceType);
 
   validateReviewHtml(rawHtml);
 
   return {
+    id: optionId,
+    label,
+    description: input.description?.trim() || undefined,
     html: sanitizeHtml(rawHtml),
+    sourceType,
+  };
+}
+
+export function prepareReviewInput(input: ReviewGeneratedUiInput): PreparedReviewInput {
+  if (input.options && (input.html || input.source || input.sourceType)) {
+    throw new Error(
+      "review_generated_ui received both top-level html/source fields and `options`. Provide either one review artifact or a structured options array, not both.",
+    );
+  }
+
+  const options = input.options?.length
+    ? input.options.map((option) => prepareOption(option))
+    : [
+        prepareOption({
+          id: "default",
+          label: "Proposed UI",
+          html: input.html,
+          source: input.source,
+          sourceType: input.sourceType,
+        }),
+      ];
+
+  const seenIds = new Set<string>();
+  for (const option of options) {
+    if (seenIds.has(option.id)) {
+      throw new Error(`review_generated_ui option ids must be unique. Duplicate id: \"${option.id}\".`);
+    }
+    seenIds.add(option.id);
+  }
+
+  return {
+    options,
+    defaultOptionId: options[0].id,
     instructions: input.instructions,
     title: input.title,
-    sourceType,
   };
 }

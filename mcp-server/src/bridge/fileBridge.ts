@@ -27,7 +27,7 @@ export function writePendingSession(session: ReviewSession): void {
     sessionId: session.sessionId,
     title: session.title,
     instructions: session.instructions,
-    html: session.originalHtml,
+    options: session.options,
     createdAt: session.createdAt.toISOString(),
   };
   writeFileSync(
@@ -63,7 +63,11 @@ export function waitForCompletion(sessionId: string): Promise<ReviewResult> {
           const data = JSON.parse(raw) as CompletedSessionFile;
           clearInterval(interval);
           cleanupSession(sessionId);
-          resolve({ status: data.status, reviewedHtml: data.reviewedHtml });
+          resolve({
+            status: data.status,
+            selectedOptionId: data.selectedOptionId,
+            reviewedHtml: data.reviewedHtml,
+          });
         } catch {
           // File may still be mid-write — retry next tick
         }
@@ -89,7 +93,11 @@ export async function handleReviewRequest(input: PreparedReviewInput): Promise<R
   const sessionId = randomUUID();
   const title = input.title ?? "Untitled Review";
 
-  const session = sessionStore.create(sessionId, title, input.html);
+  const session = sessionStore.create(
+    sessionId,
+    title,
+    input.options.map(({ id, label, description, html }) => ({ id, label, description, html })),
+  );
   if (input.instructions) session.instructions = input.instructions;
 
   writePendingSession(session);

@@ -1,6 +1,7 @@
 import type { ReviewStatus } from "../types";
 
 interface ApprovalBarProps {
+  selectedOptionLabel: string;
   generalComment: string;
   onGeneralCommentChange: (v: string) => void;
   onSubmit: (status: ReviewStatus) => void;
@@ -13,6 +14,7 @@ const BUTTONS: { label: string; status: ReviewStatus; color: string }[] = [
 ];
 
 export function ApprovalBar({
+  selectedOptionLabel,
   generalComment,
   onGeneralCommentChange,
   onSubmit,
@@ -33,6 +35,9 @@ export function ApprovalBar({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--app-muted)", fontWeight: 700, marginBottom: 8 }}>
           Review Summary
+        </div>
+        <div style={{ marginBottom: 8, fontSize: 12, color: "var(--app-muted)" }}>
+          Selected option: <span style={{ color: "#f3f6fb", fontWeight: 700 }}>{selectedOptionLabel}</span>
         </div>
         <textarea
           value={generalComment}
