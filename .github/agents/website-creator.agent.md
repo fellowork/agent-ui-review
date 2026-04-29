@@ -32,8 +32,9 @@ When the review is scoped to a localized change, explicitly say so in `instructi
 
 ### Step 3 — Iterate Until Approved
 - If the reviewer requests changes, update the prototype and resubmit via `mcp_ui-review_review_generated_ui`.
-- When the tool returns `changes_requested` or `approved_with_notes`, treat the returned `reviewedHtml` as the source of truth for the next iteration. Do not continue from the pre-review prototype if the reviewer edited text, colors, spacing, or other inline styles in the review UI.
+- When the tool returns `changes_requested` or `approved_with_notes`, treat the returned `reviewedHtml` as the selected option's source of truth for the next iteration. If the response also includes `reviewedOptions`, use those as the authoritative updated prototypes for all reviewed options rather than continuing from the pre-review versions.
 - Read the returned review summary and inspect the reviewed HTML for `data-review-comment`, `data-review-status`, the hidden `#agent-review-feedback` block, and any inline style or text changes before revising the prototype.
+- For multi-option reviews, read `optionSummaries` and preserve per-option notes when regenerating alternatives. Do not collapse multiple reviewed options back into one unless the reviewer explicitly chose a single direction and asked to discard the others.
 - Repeat until the review returns an approved status.
 - Never proceed to implementation while changes are still being requested.
 

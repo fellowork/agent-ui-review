@@ -46,12 +46,7 @@ export function createReviewGeneratedUiTool(
       }, TIMEOUT_MS);
     });
 
-    const selectedOption = prepared.options.find((option) => option.id === result.selectedOptionId);
-    const reviewSummary = summarizeReviewResult(
-      selectedOption?.html ?? prepared.options[0].html,
-      result,
-      selectedOption?.label,
-    );
+    const reviewSummary = summarizeReviewResult(prepared.options, result);
 
     return {
       content: [
@@ -65,8 +60,11 @@ export function createReviewGeneratedUiTool(
             status: result.status,
             selectedOptionId: result.selectedOptionId,
             reviewedHtml: result.reviewedHtml,
-            reviewerNote: reviewSummary.generalComment,
+            reviewedOptions: result.reviewedOptions,
+            reviewerNote:
+              reviewSummary.optionSummaries.find((option) => option.optionId === result.selectedOptionId)?.generalComment ?? null,
             reviewSummary,
+            optionSummaries: reviewSummary.optionSummaries,
           }),
         },
       ],

@@ -1,4 +1,4 @@
-import type { ReviewState } from "./types";
+import type { ReviewState, ReviewSubmission } from "./types";
 
 export const vscode = window.acquireVsCodeApi();
 
@@ -52,11 +52,21 @@ export function buildReviewedHtml(state: ReviewState): string {
 }
 
 export function postSubmit(state: ReviewState): void {
+  throw new Error("postSubmit now expects a full review submission. Use postReviewSubmission instead.");
+}
+
+export function postReviewSubmission(submission: ReviewSubmission): void {
+  const selectedReviewedHtml =
+    submission.reviewedOptions.find((option) => option.optionId === submission.selectedOptionId)?.reviewedHtml ??
+    submission.reviewedOptions[0]?.reviewedHtml ??
+    "";
+
   vscode.postMessage({
     type: "submitReview",
-    sessionId: state.sessionId,
-    status: state.status,
-    selectedOptionId: state.selectedOptionId,
-    reviewedHtml: buildReviewedHtml(state),
+    sessionId: submission.sessionId,
+    status: submission.status,
+    selectedOptionId: submission.selectedOptionId,
+    reviewedHtml: selectedReviewedHtml,
+    reviewedOptions: submission.reviewedOptions,
   });
 }

@@ -2,6 +2,7 @@ import type { ReviewStatus } from "../types";
 
 interface ApprovalBarProps {
   selectedOptionLabel: string;
+  isMultiOption: boolean;
   generalComment: string;
   onGeneralCommentChange: (v: string) => void;
   onSubmit: (status: ReviewStatus) => void;
@@ -15,6 +16,7 @@ const BUTTONS: { label: string; status: ReviewStatus; color: string }[] = [
 
 export function ApprovalBar({
   selectedOptionLabel,
+  isMultiOption,
   generalComment,
   onGeneralCommentChange,
   onSubmit,
@@ -34,15 +36,20 @@ export function ApprovalBar({
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--app-muted)", fontWeight: 700, marginBottom: 8 }}>
-          Review Summary
+          {isMultiOption ? "Selected Tab Notes" : "Review Summary"}
         </div>
         <div style={{ marginBottom: 8, fontSize: 12, color: "var(--app-muted)" }}>
-          Selected option: <span style={{ color: "#f3f6fb", fontWeight: 700 }}>{selectedOptionLabel}</span>
+          {isMultiOption ? "Editing notes for: " : "Selected option: "}
+          <span style={{ color: "#f3f6fb", fontWeight: 700 }}>{selectedOptionLabel}</span>
         </div>
         <textarea
           value={generalComment}
           onChange={(e) => onGeneralCommentChange(e.target.value)}
-          placeholder="Summarize the larger direction, blockers, or approval rationale"
+          placeholder={
+            isMultiOption
+              ? "Summarize the feedback for this specific option or tab"
+              : "Summarize the larger direction, blockers, or approval rationale"
+          }
           rows={3}
           style={{
             width: "100%",

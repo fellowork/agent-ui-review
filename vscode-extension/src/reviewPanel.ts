@@ -12,6 +12,10 @@ interface SubmitReviewMessage {
   status: 'approved' | 'approved_with_notes' | 'changes_requested';
   selectedOptionId: string;
   reviewedHtml: string;
+  reviewedOptions: Array<{
+    optionId: string;
+    reviewedHtml: string;
+  }>;
 }
 
 type WebviewMessage = SubmitReviewMessage;
@@ -43,6 +47,7 @@ export class ReviewPanel {
             message.status,
             message.selectedOptionId,
             message.reviewedHtml,
+            message.reviewedOptions,
           );
           this._panel.dispose();
         }

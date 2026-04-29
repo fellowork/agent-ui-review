@@ -152,6 +152,10 @@ export function writeCompletedSession(
   status: "approved" | "approved_with_notes" | "changes_requested",
   selectedOptionId: string,
   reviewedHtml: string,
+  reviewedOptions: Array<{
+    optionId: string;
+    reviewedHtml: string;
+  }>,
 ): void {
   const dirs = getBridgeDirectories(bridgeScope === 'global' ? undefined : bridgeScope);
   fs.mkdirSync(dirs.completedDir, { recursive: true });
@@ -161,6 +165,7 @@ export function writeCompletedSession(
     status,
     selectedOptionId,
     reviewedHtml,
+    reviewedOptions,
     completedAt: new Date().toISOString(),
   };
 

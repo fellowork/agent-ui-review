@@ -15,5 +15,9 @@ export interface CompletedSessionFile {
   status: ReviewStatus;
   selectedOptionId: string;
   reviewedHtml: string;
+  reviewedOptions: Array<{
+    optionId: string;
+    reviewedHtml: string;
+  }>;
   completedAt: string;
 }

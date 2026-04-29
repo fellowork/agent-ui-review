@@ -36,7 +36,7 @@ This is not a design tool or a Figma replacement. It is a lightweight approval s
 	- leave per-element comments
 	- leave a general review summary
 	- approve, approve with notes, or request changes
-- Returns reviewed HTML, the selected option id, and review status back to the caller
+- Returns reviewed HTML for the selected option, all reviewed options, the selected option id, and review status back to the caller
 
 ## How the workflow works
 
@@ -75,7 +75,9 @@ Behavior notes:
 - `source` with `sourceType` is supported for self-contained TypeScript and TSX prototypes.
 - `options` is the preferred path when the agent needs the reviewer to choose between multiple UI alternatives in one pass.
 - TypeScript and TSX prototypes must not import external modules.
-- Returned output includes the final status, `selectedOptionId`, and reviewed HTML.
+- Returned output includes the final status, `selectedOptionId`, `reviewedHtml` for the selected option, and `reviewedOptions` for the full reviewed set.
+
+For multi-option reviews, reviewer notes are stored per option rather than shared across tabs.
 
 ## Who this is for
 

@@ -30,12 +30,22 @@ export interface SelectedComponentSnapshot {
 }
 
 export interface ReviewState {
-  sessionId: string;
-  selectedOptionId: string;
+  optionId: string;
   originalHtml: string;
   generalComment: string;
   annotations: Record<string, ComponentAnnotation>;
+}
+
+export interface ReviewedOptionSubmission {
+  optionId: string;
+  reviewedHtml: string;
+}
+
+export interface ReviewSubmission {
+  sessionId: string;
+  selectedOptionId: string;
   status: ReviewStatus | null;
+  reviewedOptions: ReviewedOptionSubmission[];
 }
 
 export interface ReviewSessionPayload {

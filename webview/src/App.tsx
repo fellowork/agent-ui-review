@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Preview } from "./components/Preview";
 import { Inspector } from "./components/Inspector";
 import { ApprovalBar } from "./components/ApprovalBar";
-import { postSubmit } from "./state";
+import { buildReviewedHtml, postReviewSubmission } from "./state";
 import type {
   ComponentAnnotation,
-  ReviewOption,
   ReviewState,
   ReviewStatus,
   SelectedComponentSnapshot,
@@ -17,7 +16,7 @@ export function App() {
   const layoutRef = useRef<HTMLDivElement>(null);
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
-  const [generalComment, setGeneralComment] = useState("");
+  const [generalCommentsByOption, setGeneralCommentsByOption] = useState<Record<string, string>>({});
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(
     session.selectedOptionId ?? fallbackOption?.id ?? null,
   );
@@ -29,12 +28,16 @@ export function App() {
   const [status, setStatus] = useState<ReviewStatus | null>(null);
   const [inspectorWidth, setInspectorWidth] = useState(360);
   const [isResizingInspector, setIsResizingInspector] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
 
   const selectedOption =
     session.options.find((option) => option.id === selectedOptionId) ?? fallbackOption;
   const selectedAnnotations = selectedOption
     ? annotationsByOption[selectedOption.id] ?? {}
     : {};
+  const selectedGeneralComment = selectedOption
+    ? generalCommentsByOption[selectedOption.id] ?? ""
+    : "";
 
   const clampInspectorWidth = (nextWidth: number) => {
     const layoutWidth = layoutRef.current?.clientWidth ?? 0;
@@ -66,25 +69,47 @@ export function App() {
     }));
   }, [selectedOptionId]);
 
+  const handleGeneralCommentChange = useCallback((value: string) => {
+    if (!selectedOptionId) {
+      return;
+    }
+
+    setGeneralCommentsByOption((prev) => ({
+      ...prev,
+      [selectedOptionId]: value,
+    }));
+  }, [selectedOptionId]);
+
   const handleSubmit = useCallback(
     (chosenStatus: ReviewStatus) => {
       if (!selectedOption) {
         return;
       }
 
-      const state: ReviewState = {
+      const reviewedOptions = session.options.map((option) => {
+        const optionState: ReviewState = {
+          optionId: option.id,
+          originalHtml: option.html,
+          generalComment: generalCommentsByOption[option.id] ?? "",
+          annotations: annotationsByOption[option.id] ?? {},
+        };
+
+        return {
+          optionId: option.id,
+          reviewedHtml: buildReviewedHtml(optionState),
+        };
+      });
+
+      setStatus(chosenStatus);
+      postReviewSubmission({
         sessionId: session.sessionId,
         selectedOptionId: selectedOption.id,
-        originalHtml: selectedOption.html,
-        generalComment,
-        annotations: selectedAnnotations,
         status: chosenStatus,
-      };
-      setStatus(chosenStatus);
-      postSubmit(state);
+        reviewedOptions,
+      });
       setSubmitted(true);
     },
-    [session, generalComment, selectedAnnotations, selectedOption]
+    [annotationsByOption, generalCommentsByOption, selectedOption, session]
   );
 
   const handleInspectorResizeStart = useCallback(
@@ -130,6 +155,7 @@ export function App() {
 
   useEffect(() => {
     const handleWindowResize = () => {
+      setWindowWidth(window.innerWidth);
       setInspectorWidth((currentWidth) => clampInspectorWidth(currentWidth));
     };
 
@@ -187,6 +213,7 @@ export function App() {
   );
 
   const optionInstructions = session.instructions.trim();
+  const useCompactStackedHeader = windowWidth <= 760;
 
   return (
     <div
@@ -204,11 +231,13 @@ export function App() {
     >
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-          padding: "14px 18px",
+          display: "grid",
+          gridTemplateColumns: useCompactStackedHeader
+            ? "minmax(0, 1fr)"
+            : "minmax(0, 1fr) minmax(280px, 380px)",
+          alignItems: useCompactStackedHeader ? "start" : "center",
+          gap: 12,
+          padding: "10px 16px",
           borderBottom: "1px solid var(--chrome-border)",
           background: "rgba(10, 15, 24, 0.72)",
           backdropFilter: "blur(14px)",
@@ -216,14 +245,28 @@ export function App() {
         }}
       >
         <div>
-          <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--app-muted)", fontWeight: 700 }}>
+          <div style={{ fontSize: 10, lineHeight: 1.1, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--app-muted)", fontWeight: 700, marginBottom: 4 }}>
             Review Mode
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#f3f6fb" }}>
+          <div style={{ fontSize: 16, lineHeight: 1.15, fontWeight: 700, color: "#f3f6fb" }}>
             {session.title || `UI Review Session ${session.sessionId}`}
           </div>
         </div>
-        <div style={{ color: "var(--app-muted)", fontSize: 13, maxWidth: 420, textAlign: "right", lineHeight: 1.45 }}>
+        <div
+          style={{
+            justifySelf: useCompactStackedHeader ? "start" : "end",
+            maxWidth: useCompactStackedHeader ? "none" : 380,
+            color: "var(--app-muted)",
+            fontSize: 12,
+            lineHeight: 1.35,
+            textAlign: useCompactStackedHeader ? "left" : "right",
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
           {optionInstructions ||
             "Click an element to inspect its live styles, adjust copy, and attach focused notes before approving or requesting changes."}
         </div>
@@ -233,71 +276,93 @@ export function App() {
         <div
           style={{
             display: "flex",
-            gap: 12,
-            padding: "14px 18px 0",
-            overflowX: "auto",
+            flexDirection: "column",
+            padding: "0 18px",
+            borderBottom: "1px solid var(--chrome-border)",
+            background: "rgba(7, 10, 17, 0.34)",
             flexShrink: 0,
           }}
         >
-          {session.options.map((option) => {
-            const isSelected = option.id === selectedOption.id;
-            const annotationCount = Object.keys(annotationsByOption[option.id] ?? {}).length;
+          <div
+            role="tablist"
+            aria-label="Review options"
+            style={{
+              display: "flex",
+              alignItems: "stretch",
+              gap: 4,
+              overflowX: "auto",
+              scrollbarWidth: "thin",
+            }}
+          >
+            {session.options.map((option) => {
+              const isSelected = option.id === selectedOption.id;
+              const annotationCount = Object.keys(annotationsByOption[option.id] ?? {}).length;
 
-            return (
-              <button
-                key={option.id}
-                onClick={() => handleSelectOption(option.id)}
-                style={{
-                  minWidth: 220,
-                  maxWidth: 320,
-                  textAlign: "left",
-                  padding: 14,
-                  borderRadius: 18,
-                  border: isSelected
-                    ? "1px solid rgba(126, 211, 196, 0.58)"
-                    : "1px solid var(--chrome-border)",
-                  background: isSelected
-                    ? "linear-gradient(180deg, rgba(126, 211, 196, 0.16), rgba(126, 211, 196, 0.06))"
-                    : "rgba(255, 255, 255, 0.03)",
-                  color: "var(--app-text)",
-                  cursor: "pointer",
-                  boxShadow: isSelected ? "0 16px 40px rgba(0, 0, 0, 0.2)" : "none",
-                }}
-              >
-                <div
+              return (
+                <button
+                  key={option.id}
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => handleSelectOption(option.id)}
                   style={{
+                    position: "relative",
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    gap: 12,
-                    marginBottom: 8,
+                    gap: 10,
+                    padding: "14px 16px 13px",
+                    border: "none",
+                    borderBottom: isSelected
+                      ? "2px solid rgba(126, 211, 196, 0.95)"
+                      : "2px solid transparent",
+                    background: isSelected ? "rgba(126, 211, 196, 0.08)" : "transparent",
+                    color: isSelected ? "#f3f6fb" : "var(--app-muted)",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    fontSize: 13,
+                    fontWeight: isSelected ? 700 : 600,
                   }}
                 >
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#f3f6fb" }}>{option.label}</div>
-                  <div
+                  <span>{option.label}</span>
+                  <span
                     style={{
-                      padding: "4px 8px",
+                      padding: "2px 7px",
                       borderRadius: 999,
-                      background: isSelected ? "rgba(126, 211, 196, 0.18)" : "rgba(173, 201, 230, 0.1)",
+                      background: isSelected
+                        ? "rgba(126, 211, 196, 0.18)"
+                        : "rgba(173, 201, 230, 0.08)",
                       color: isSelected ? "#d9fff5" : "var(--app-muted)",
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: 700,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
                     }}
                   >
-                    {isSelected ? "Active" : option.id}
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--app-muted)" }}>
-                  {option.description || "No rationale provided for this option."}
-                </div>
-                <div style={{ marginTop: 12, fontSize: 11, color: isSelected ? "#b9f4e7" : "var(--app-muted)" }}>
-                  {annotationCount} annotation{annotationCount !== 1 ? "s" : ""}
-                </div>
-              </button>
-            );
-          })}
+                    {annotationCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "10px 2px 12px",
+              color: "var(--app-muted)",
+              fontSize: 12,
+              lineHeight: 1.5,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <span style={{ color: "#f3f6fb", fontWeight: 700 }}>{selectedOption.label}</span>
+              {selectedOption.description ? ` — ${selectedOption.description}` : " — No rationale provided for this option."}
+            </div>
+            <div style={{ whiteSpace: "nowrap" }}>
+              {selectedAnnotationCount} annotation{selectedAnnotationCount !== 1 ? "s" : ""} on this tab, {totalAnnotationCount} total
+            </div>
+          </div>
         </div>
       )}
 
@@ -389,8 +454,9 @@ export function App() {
 
       <ApprovalBar
         selectedOptionLabel={selectedOption.label}
-        generalComment={generalComment}
-        onGeneralCommentChange={setGeneralComment}
+        isMultiOption={session.options.length > 1}
+        generalComment={selectedGeneralComment}
+        onGeneralCommentChange={handleGeneralCommentChange}
         onSubmit={handleSubmit}
       />
 

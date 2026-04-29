@@ -67,6 +67,7 @@ export function waitForCompletion(sessionId: string): Promise<ReviewResult> {
             status: data.status,
             selectedOptionId: data.selectedOptionId,
             reviewedHtml: data.reviewedHtml,
+            reviewedOptions: data.reviewedOptions,
           });
         } catch {
           // File may still be mid-write — retry next tick

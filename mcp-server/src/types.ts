@@ -26,6 +26,10 @@ export interface ReviewResult {
   status: ReviewStatus;
   selectedOptionId: string;
   reviewedHtml: string;
+  reviewedOptions: Array<{
+    optionId: string;
+    reviewedHtml: string;
+  }>;
 }
 
 export type ReviewSourceType = "html" | "typescript" | "tsx";

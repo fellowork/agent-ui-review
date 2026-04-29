@@ -1,5 +1,5 @@
 import type * as JsdomModule from "jsdom";
-import type { ReviewResult } from "../types.js";
+import type { PreparedReviewOption, ReviewResult } from "../types.js";
 
 const { JSDOM } = require("jsdom/lib/api.js") as typeof JsdomModule;
 
@@ -10,12 +10,18 @@ interface ComponentReviewSummary {
   changedStyles: string[];
 }
 
+export interface OptionReviewSummary {
+  optionId: string;
+  optionLabel: string | null;
+  generalComment: string | null;
+  componentSummaries: ComponentReviewSummary[];
+}
+
 export interface ReviewSummary {
   status: ReviewResult["status"];
   selectedOptionId: string;
   selectedOptionLabel: string | null;
-  generalComment: string | null;
-  componentSummaries: ComponentReviewSummary[];
+  optionSummaries: OptionReviewSummary[];
 }
 
 function buildElementMap(document: Document): Map<string, HTMLElement> {
@@ -80,13 +86,14 @@ function getDirectGeneralComment(document: Document): string | null {
   return normalized ? normalized : null;
 }
 
-export function summarizeReviewResult(
+export function summarizeOptionReview(
   originalHtml: string,
-  result: ReviewResult,
-  selectedOptionLabel?: string,
-): ReviewSummary {
+  reviewedHtml: string,
+  optionId: string,
+  optionLabel?: string,
+): OptionReviewSummary {
   const originalDom = new JSDOM(originalHtml);
-  const reviewedDom = new JSDOM(result.reviewedHtml);
+  const reviewedDom = new JSDOM(reviewedHtml);
   const originalElements = buildElementMap(originalDom.window.document);
   const reviewedDocument = reviewedDom.window.document;
 
@@ -116,11 +123,34 @@ export function summarizeReviewResult(
   });
 
   return {
-    status: result.status,
-    selectedOptionId: result.selectedOptionId,
-    selectedOptionLabel: selectedOptionLabel ?? null,
+    optionId,
+    optionLabel: optionLabel ?? null,
     generalComment: getDirectGeneralComment(reviewedDocument),
     componentSummaries,
+  };
+}
+
+export function summarizeReviewResult(
+  preparedOptions: PreparedReviewOption[],
+  result: ReviewResult,
+): ReviewSummary {
+  const optionSummaries = result.reviewedOptions.map((reviewedOption) => {
+    const originalOption = preparedOptions.find((option) => option.id === reviewedOption.optionId);
+    return summarizeOptionReview(
+      originalOption?.html ?? reviewedOption.reviewedHtml,
+      reviewedOption.reviewedHtml,
+      reviewedOption.optionId,
+      originalOption?.label,
+    );
+  });
+
+  const selectedSummary = optionSummaries.find((option) => option.optionId === result.selectedOptionId);
+
+  return {
+    status: result.status,
+    selectedOptionId: result.selectedOptionId,
+    selectedOptionLabel: selectedSummary?.optionLabel ?? null,
+    optionSummaries,
   };
 }
 
@@ -130,33 +160,24 @@ export function formatReviewSummary(summary: ReviewSummary): string {
   if (summary.selectedOptionLabel) {
     lines.push(`Selected option: ${summary.selectedOptionLabel} (${summary.selectedOptionId})`);
   }
-  lines.push("Treat reviewedHtml as the authoritative updated prototype for the next iteration.");
+  lines.push("Treat reviewedOptions as the authoritative updated prototypes for the next iteration. reviewedHtml remains the selected option's artifact for backward compatibility.");
 
-  if (summary.generalComment) {
-    lines.push(`General feedback: ${summary.generalComment}`);
+  if (summary.optionSummaries.length === 0) {
+    lines.push("No option-level feedback was returned.");
+    return lines.join("\n");
   }
 
-  if (summary.componentSummaries.length > 0) {
-    lines.push("Component-level feedback:");
-    for (const component of summary.componentSummaries.slice(0, 12)) {
-      const details: string[] = [];
-      if (component.comment) {
-        details.push(`comment: ${component.comment}`);
-      }
-      if (component.changedText) {
-        details.push("text changed");
-      }
-      if (component.changedStyles.length > 0) {
-        details.push(`style changes: ${component.changedStyles.join(", ")}`);
-      }
-      lines.push(`- ${component.componentId}: ${details.join("; ")}`);
+  lines.push("Option feedback:");
+  for (const option of summary.optionSummaries) {
+    const header = option.optionLabel ? `${option.optionLabel} (${option.optionId})` : option.optionId;
+    const details: string[] = [];
+    if (option.generalComment) {
+      details.push(`note: ${option.generalComment}`);
     }
-
-    if (summary.componentSummaries.length > 12) {
-      lines.push(`- ...and ${summary.componentSummaries.length - 12} more edited components.`);
+    if (option.componentSummaries.length > 0) {
+      details.push(`${option.componentSummaries.length} component edit${option.componentSummaries.length === 1 ? "" : "s"}`);
     }
-  } else {
-    lines.push("No per-component comments or inline edits were detected in reviewedHtml.");
+    lines.push(`- ${header}: ${details.length > 0 ? details.join("; ") : "no inline edits or notes detected"}`);
   }
 
   return lines.join("\n");
