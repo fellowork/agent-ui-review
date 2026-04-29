@@ -29,6 +29,7 @@ export function App() {
   const [inspectorWidth, setInspectorWidth] = useState(360);
   const [isResizingInspector, setIsResizingInspector] = useState(false);
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  const [interactMode, setInteractMode] = useState(false);
 
   const selectedOption =
     session.options.find((option) => option.id === selectedOptionId) ?? fallbackOption;
@@ -244,13 +245,38 @@ export function App() {
           flexShrink: 0,
         }}
       >
-        <div>
-          <div style={{ fontSize: 10, lineHeight: 1.1, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--app-muted)", fontWeight: 700, marginBottom: 4 }}>
-            Review Mode
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 10, lineHeight: 1.1, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--app-muted)", fontWeight: 700, marginBottom: 4 }}>
+              Review Mode
+            </div>
+            <div style={{ fontSize: 16, lineHeight: 1.15, fontWeight: 700, color: "#f3f6fb" }}>
+              {session.title || `UI Review Session ${session.sessionId}`}
+            </div>
           </div>
-          <div style={{ fontSize: 16, lineHeight: 1.15, fontWeight: 700, color: "#f3f6fb" }}>
-            {session.title || `UI Review Session ${session.sessionId}`}
-          </div>
+          <button
+            onClick={() => setInteractMode((prev) => !prev)}
+            title={interactMode ? "Switch to Inspect mode — Alt+click to inspect elements" : "Switch to Interact mode — clicks pass through to the UI"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              padding: "6px 12px",
+              border: "1px solid",
+              borderColor: interactMode ? "rgba(251, 191, 36, 0.55)" : "rgba(126, 211, 196, 0.45)",
+              borderRadius: 999,
+              background: interactMode ? "rgba(251, 191, 36, 0.12)" : "rgba(126, 211, 196, 0.1)",
+              color: interactMode ? "#fbbf24" : "rgba(126, 211, 196, 0.9)",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: 14, lineHeight: 1 }}>{interactMode ? "⚡" : "🔍"}</span>
+            {interactMode ? "Interact" : "Inspect"}
+          </button>
         </div>
         <div
           style={{
@@ -381,6 +407,7 @@ export function App() {
             html={selectedOption.html}
             onSelectComponent={handleSelectComponent}
             annotations={selectedAnnotations}
+            interactMode={interactMode}
           />
 
           <div
@@ -399,7 +426,8 @@ export function App() {
             </div>
             <div>
               {selectedAnnotationCount} annotation{selectedAnnotationCount !== 1 ? "s" : ""} on this option
-              {session.options.length > 1 ? `, ${totalAnnotationCount} total` : ""}
+              {session.options.length > 1 ? `, ${totalAnnotationCount} total` : ""}{" "}
+              &mdash; {interactMode ? "Interact mode: clicks pass through to the UI" : "Inspect mode: Alt+click to inspect, click to select"}
             </div>
           </div>
         </div>

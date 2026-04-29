@@ -5,6 +5,7 @@ interface PreviewProps {
   html: string;
   onSelectComponent: (selection: SelectedComponentSnapshot) => void;
   annotations: Record<string, ComponentAnnotation>;
+  interactMode?: boolean;
 }
 
 const HIGHLIGHT_STYLE = `
@@ -22,6 +23,17 @@ const HIGHLIGHT_STYLE = `
   }
   [data-review-comment] {
     outline-color: #3b82f6 !important;
+  }
+
+  /* Interact mode: restore normal cursor and hide all review outlines */
+  body.review-interact [data-component-id] {
+    cursor: unset !important;
+    outline: none !important;
+    transition: none !important;
+  }
+  body.review-interact [data-review-selected],
+  body.review-interact [data-review-comment] {
+    outline: none !important;
   }
 `;
 
@@ -93,12 +105,16 @@ function applyAnnotations(
   });
 }
 
-export function Preview({ html, onSelectComponent, annotations }: PreviewProps) {
+export function Preview({ html, onSelectComponent, annotations, interactMode = false }: PreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [blobUrl, setBlobUrl] = useState<string>(() => makeBlobUrl(html));
   const prevUrlRef = useRef<string>(blobUrl);
   const onSelectRef = useRef(onSelectComponent);
   onSelectRef.current = onSelectComponent;
+
+  // Keep interactMode accessible inside the load callback without re-registering.
+  const interactModeRef = useRef(interactMode);
+  interactModeRef.current = interactMode;
 
   // contentDocument ref so style updates don't require an iframe reload.
   const contentDocRef = useRef<Document | null>(null);
@@ -156,28 +172,30 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
         (doc.head ?? doc.documentElement).appendChild(style);
       }
 
-      // Use CAPTURE phase so our handler fires before any element-level handlers
-      // (e.g. buttons, links, form submissions). stopPropagation prevents the
-      // element's own handler from running afterwards.
+      // In interact mode the listener bails out immediately so all native
+      // events pass through unchanged. In inspect mode every click on an
+      // annotated element is intercepted — buttons/links don't fire.
       function handleClick(e: Event) {
+        if (interactModeRef.current) return;
+
         const target = e.target as HTMLElement | null;
         if (!target) return;
         const el = target.closest<HTMLElement>("[data-component-id]");
-        if (el) {
-          e.preventDefault();
-          e.stopPropagation();
-          const id = el.getAttribute("data-component-id");
-          if (id) {
-            selectedIdRef.current = id;
-            applyAnnotations(
-              doc,
-              annotationsRef.current,
-              originalStylesRef.current,
-              originalTextsRef.current,
-              id
-            );
-            onSelectRef.current(captureSelection(el));
-          }
+        if (!el) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        const id = el.getAttribute("data-component-id");
+        if (id) {
+          selectedIdRef.current = id;
+          applyAnnotations(
+            doc,
+            annotationsRef.current,
+            originalStylesRef.current,
+            originalTextsRef.current,
+            id
+          );
+          onSelectRef.current(captureSelection(el));
         }
       }
 
@@ -203,6 +221,13 @@ export function Preview({ html, onSelectComponent, annotations }: PreviewProps) 
       selectedIdRef.current
     );
   }, [annotations]);
+
+  // Toggle the review-interact body class so CSS can hide outlines in interact mode.
+  useEffect(() => {
+    const doc = contentDocRef.current;
+    if (!doc?.body) return;
+    doc.body.classList.toggle("review-interact", interactMode);
+  }, [interactMode]);
 
   return (
     <div
